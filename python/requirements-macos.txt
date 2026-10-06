@@ -1,0 +1,4 @@
+-r requirements.txt
+# Apple-silicon TensorFlow (Metal GPU)
+tensorflow-macos==2.15.0
+tensorflow-metal==1.1.0

@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>IoT Health Monitor v3</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080c14;--bg2:#0d1219;--bg3:#111827;--card:#0f1724;
+  --border:#1a2535;--border2:#243347;
+  --txt:#e2e8f0;--txt2:#94a3b8;--txt3:#475569;
+  --blue:#3b82f6;--green:#22c55e;--yellow:#f59e0b;--red:#ef4444;--purple:#a78bfa;--cyan:#06b6d4;
+  --sidebar:220px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);display:flex;min-height:100vh;overflow-x:hidden}
+
+/* ── SIDEBAR ── */
+.sidebar{width:var(--sidebar);min-height:100vh;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;left:0;top:0;z-index:50;transition:.3s}
+.sb-logo{padding:18px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.sb-logo-icon{width:32px;height:32px;background:linear-gradient(135deg,var(--blue),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px}
+.sb-logo-text{font-size:14px;font-weight:700;color:var(--txt)}
+.sb-logo-sub{font-size:10px;color:var(--txt3)}
+.sb-nav{flex:1;padding:10px 0;overflow-y:auto}
+.sb-section{padding:6px 16px;font-size:9px;font-weight:700;color:var(--txt3);letter-spacing:.1em;text-transform:uppercase;margin-top:6px}
+.sb-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;transition:.15s;border-left:3px solid transparent;font-size:13px;color:var(--txt2)}
+.sb-item:hover{background:rgba(59,130,246,.08);color:var(--txt)}
+.sb-item.active{background:rgba(59,130,246,.12);border-left-color:var(--blue);color:var(--blue)}
+.sb-icon{font-size:15px;width:18px;text-align:center}
+.sb-badge{margin-left:auto;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;background:#7f1d1d;color:#fca5a5}
+.sb-footer{padding:14px 16px;border-top:1px solid var(--border)}
+.esp-mini{font-size:11px;color:var(--txt3)}
+.esp-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#334155;margin-right:5px;transition:background .3s}
+.esp-dot.on{background:var(--green)}
+
+/* ── MAIN ── */
+.main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{padding:12px 24px;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:40}
+.topbar h2{font-size:15px;font-weight:600;flex:1}
+.tb-badge{padding:3px 9px;border-radius:12px;font-size:10px;font-weight:600}
+.tb-blue{background:#0c2340;color:#60a5fa}
+.tb-time{font-size:11px;color:var(--txt3)}
+#alertBell{position:relative;cursor:pointer;font-size:18px;padding:4px}
+.bell-count{position:absolute;top:-2px;right:-4px;background:var(--red);color:#fff;font-size:9px;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center}
+
+.content{flex:1;padding:20px 24px;overflow-y:auto}
+
+/* ── TABS ── */
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* ── CARDS ── */
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px}
+.grid-chart{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:16px}
+.card{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:16px}
+.card-sm{padding:14px}
+.ctitle{font-size:10px;font-weight:700;color:var(--txt3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px}
+.cval{font-size:28px;font-weight:700;line-height:1}
+.cunit{font-size:13px;color:var(--txt3);margin-left:3px}
+.csub{font-size:11px;color:var(--txt3);margin-top:4px}
+.cstatus{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:8px;font-size:11px;font-weight:600;margin-top:6px}
+.s-good{background:#031a0e;color:#4ade80}.s-fair{background:#1c1100;color:#fbbf24}.s-poor,.s-high{background:#1f0505;color:#f87171}.s-medium{background:#1c1100;color:#fbbf24}.s-low,.s-ok{background:#031a0e;color:#4ade80}
+.pulse{animation:pulseAnim 2s infinite}
+@keyframes pulseAnim{0%,100%{opacity:1}50%{opacity:.5}}
+
+/* ── GAUGE ── */
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:8px 0}
+.gauge-svg{overflow:visible}
+.gauge-val{font-size:26px;font-weight:700;text-anchor:middle;dominant-baseline:central}
+.gauge-lbl{font-size:11px;text-anchor:middle;fill:var(--txt3)}
+
+/* ── RING CHART ── */
+.ring-wrap{position:relative;width:100px;height:100px;margin:0 auto 10px}
+svg.ring{transform:rotate(-90deg)}
+.rt{fill:none;stroke:var(--border);stroke-width:9}
+.rf{fill:none;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .6s,stroke .3s}
+.sc{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center}
+.sn{font-size:22px;font-weight:700;line-height:1}.sl{font-size:9px;color:var(--txt3)}
+
+/* ── CHART CARDS ── */
+.chart-card{background:var(--card);border-radius:14px;border:1px solid var(--border);padding:16px}
+.chart-h{height:180px;position:relative}
+.chart-h-tall{height:220px;position:relative}
+
+/* ── MOOD BARS ── */
+.mbrow{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.mbn{font-size:11px;color:var(--txt2);width:66px;text-transform:capitalize}
+.mbt{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.mbf{height:100%;border-radius:3px;transition:width .4s}
+.mbp{font-size:10px;color:var(--txt3);width:32px;text-align:right}
+
+/* ── POSTURE ── */
+.pst{text-align:center;font-size:13px;font-weight:600;margin-bottom:8px}
+.issues{list-style:none}
+.issues li{font-size:11px;color:#f87171;padding:3px 0;border-bottom:1px solid var(--border)}
+.issues li:last-child{border-bottom:none}
+.issues li::before{content:'';display:inline-block;width:5px;height:5px;border-radius:50%;background:#ef4444;margin-right:6px;vertical-align:middle}
+
+/* ── CAMERA ── */
+.cam-section{display:grid;grid-template-columns:1fr 320px;gap:14px;margin-bottom:16px}
+.cam-card{background:var(--card);border-radius:14px;border:1px solid var(--border);overflow:hidden}
+.cam-hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.cam-hdr span{font-size:11px;color:var(--txt3)}
+.ldot{width:7px;height:7px;border-radius:50%;background:#334155;display:inline-block;margin-right:5px;transition:.3s}
+.ldot.on{background:var(--green);animation:pulseAnim 1.5s infinite}
+#video{width:100%;display:block;background:#050810;max-height:320px;object-fit:cover}
+.cam-foot{padding:10px 14px;display:flex;gap:8px}
+button{padding:8px 16px;border-radius:9px;border:none;cursor:pointer;font-size:12px;font-weight:500;transition:.15s}
+#startBtn{background:var(--blue);color:#fff;flex:1}#startBtn:hover{background:#2563eb}
+#startBtn:disabled{background:#0c2040;color:#334155;cursor:not-allowed}
+.btn-stop{background:var(--bg3);color:var(--txt2)}
+.btn-sm{background:var(--bg3);color:#60a5fa;font-size:12px;border:1px solid var(--border2);border-radius:8px}
+.btn-sm:hover{background:var(--blue);color:#fff}
+
+/* ── ESP32 INPUT ── */
+.esp-row{display:flex;gap:8px;margin-bottom:8px}
+input[type=text]{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 11px;color:var(--txt);font-size:12px;outline:none}
+input:focus{border-color:var(--blue)}
+.esp-st{padding:6px 10px;border-radius:8px;font-size:11px}
+.st-ok{background:#031a0e;color:#4ade80;border:1px solid #14532d}
+.st-err{background:#1a0505;color:#f87171;border:1px solid #7f1d1d}
+.st-wait{background:#1a1400;color:#fbbf24;border:1px solid #78350f}
+
+/* ── TABLES ── */
+.tbl-wrap{overflow-x:auto;max-height:300px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{padding:7px 10px;text-align:left;color:var(--txt3);border-bottom:1px solid var(--border);font-weight:600;position:sticky;top:0;background:var(--card);white-space:nowrap}
+td{padding:6px 10px;border-bottom:1px solid #0a1020;color:var(--txt2);white-space:nowrap}
+tr:hover td{background:#0a1020}
+
+/* ── ALERT PANEL ── */
+.alert-item{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:8px;border:1px solid var(--border)}
+.ai-high{background:#1f0505;border-color:#7f1d1d}
+.ai-medium{background:#1c1100;border-color:#78350f}
+.ai-low{background:#031a0e;border-color:#14532d}
+.ai-icon{font-size:18px;flex-shrink:0}
+.ai-title{font-size:12px;font-weight:600;margin-bottom:2px}
+.ai-msg{font-size:11px;color:var(--txt3)}
+.ai-time{font-size:10px;color:var(--txt3);margin-left:auto;white-space:nowrap}
+.ai-ack{padding:3px 8px;border-radius:6px;background:var(--bg3);color:var(--txt3);font-size:10px;border:1px solid var(--border);cursor:pointer}
+.ai-ack:hover{background:var(--green);color:#fff}
+
+/* ── STATUS BAR ── */
+.sbar{padding:7px 24px;background:var(--bg2);border-top:1px solid var(--border);font-size:10px;color:var(--txt3);display:flex;gap:16px;flex-wrap:wrap}
+
+/* ── METRIC ROW ── */
+.metric-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.mchip{background:var(--bg3);border-radius:8px;padding:6px 12px;font-size:11px}
+.mchip span{color:var(--txt3);margin-right:4px}
+.mchip b{color:var(--txt)}
+
+/* ── LIVE INDICATOR ── */
+.live-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;background:#031a0e;color:#4ade80}
+
+@media(max-width:900px){
+  .sidebar{width:0;overflow:hidden}
+  .main{margin-left:0}
+  .grid-4{grid-template-columns:repeat(2,1fr)}
+  .cam-section,.grid-chart{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ SIDEBAR ═══════════════ -->
+<div class="sidebar">
+  <div class="sb-logo">
+    <div class="sb-logo-icon">❤️</div>
+    <div><div class="sb-logo-text">Health Monitor</div><div class="sb-logo-sub">IoT Dashboard v3</div></div>
+  </div>
+  <nav class="sb-nav">
+    <div class="sb-section">Overview</div>
+    <div class="sb-item active" onclick="goTab('dashboard')"><span class="sb-icon">📊</span>Dashboard</div>
+    <div class="sb-section">Vitals</div>
+    <div class="sb-item" onclick="goTab('heartrate')"><span class="sb-icon">❤️</span>Heart Rate</div>
+    <div class="sb-item" onclick="goTab('spo2')"><span class="sb-icon">🫁</span>SpO2</div>
+    <div class="sb-section">Wellness</div>
+    <div class="sb-item" onclick="goTab('mood')"><span class="sb-icon">😊</span>Mood</div>
+    <div class="sb-item" onclick="goTab('posture')"><span class="sb-icon">🧍</span>Posture</div>
+    <div class="sb-item" onclick="goTab('stress')"><span class="sb-icon">🧠</span>Stress</div>
+    <div class="sb-item" onclick="goTab('productivity')"><span class="sb-icon">🚀</span>Productivity</div>
+    <div class="sb-section">Sensors</div>
+    <div class="sb-item" onclick="goTab('light')"><span class="sb-icon">☀️</span>Light Sensor</div>
+    <div class="sb-item" onclick="goTab('pressure')"><span class="sb-icon">👆</span>Pressure (FSR)</div>
+    <div class="sb-section">System</div>
+    <div class="sb-item" onclick="goTab('alerts')"><span class="sb-icon">🔔</span>Alerts<span class="sb-badge" id="sbAlertCount" style="display:none">0</span></div>
+    <div class="sb-item" onclick="goTab('history')"><span class="sb-icon">📋</span>History</div>
+  </nav>
+  <div class="sb-footer">
+    <div class="esp-mini"><span class="esp-dot" id="espDotSB"></span><span id="espLabelSB">ESP32 not connected</span></div>
+  </div>
+</div>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div class="main">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <h2 id="pageTitle">Dashboard</h2>
+    <span class="tb-badge tb-blue">ESP32</span>
+    <span class="tb-badge tb-blue" id="moodModelBadge">DeepFace</span>
+    <span class="tb-badge tb-blue" id="poseModelBadge">MediaPipe</span>
+    <span class="tb-badge tb-blue">OpenCV</span>
+    <span class="tb-badge tb-blue">MySQL</span>
+    <span class="live-chip" id="liveChip" style="display:none">● LIVE</span>
+    <span class="tb-time" id="tbTime">—</span>
+    <div id="alertBell" onclick="goTab('alerts')">🔔<span class="bell-count" id="bellCount" style="display:none">0</span></div>
+  </div>
+
+  <div class="content">
+
+  <!-- ═══ DASHBOARD TAB ═══ -->
+  <div class="tab-pane active" id="tab-dashboard">
+
+    <!-- Camera + ESP32 -->
+    <div class="cam-section">
+      <div class="cam-card">
+        <div class="cam-hdr"><span><span class="ldot" id="liveDot"></span>Live Camera</span><span id="fpsLbl" style="color:var(--txt3)">—</span></div>
+        <video id="video" autoplay playsinline muted></video>
+        <div class="cam-foot">
+          <button id="startBtn" onclick="startCam()">▶ Start Camera</button>
+          <button class="btn-stop" onclick="stopCam()">■ Stop</button>
+          <button class="btn-stop" id="calBtn" onclick="calibratePosture()" title="Sit upright and press — saves your normal posture">🎯 Calibrate</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <!-- ESP32 -->
+        <div class="card card-sm">
+          <div class="ctitle">ESP32 Connection</div>
+          <div class="esp-row"><input id="espIp" type="text" placeholder="192.168.x.x"><button class="btn-sm" onclick="connectESP()">Connect</button></div>
+          <div class="esp-st st-err" id="espSt">Not connected</div>
+        </div>
+        <!-- Mood card -->
+        <div class="card card-sm" style="flex:1">
+          <div class="ctitle">Mood & Posture</div>
+          <div id="moodMiniBox"><div style="color:var(--txt3);font-size:12px;text-align:center;padding:20px">Start camera</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top metrics -->
+    <div class="grid-4">
+      <div class="card card-sm">
+        <div class="ctitle">Heart Rate</div>
+        <div class="cval" id="dHR" style="color:#ef4444">—<span class="cunit">BPM</span></div>
+        <div class="csub" id="dHRsub">—</div>
+        <div class="cstatus s-ok" id="dHRst">Normal</div>
+      </div>
+      <div class="card card-sm">
+        <div class="ctitle">SpO2</div>
+        <div class="cval" id="dSPO" style="color:#22c55e">—<span class="cunit">%</span></div>
+        <div class="csub" id="dSPOsub">Oxygen saturation</div>
+        <div class="cstatus s-ok" id="dSPOst">Normal</div>
+      </div>
+      <div class="card card-sm">
+        <div class="ctitle">Mood</div>
+        <div class="cval" id="dMood" style="color:#a78bfa;font-size:22px">—</div>
+        <div class="csub" id="dMoodSub">—</div>
+        <div class="cstatus s-ok" id="dMoodSt">—</div>
+      </div>
+      <div class="card card-sm">
+        <div class="ctitle">Posture Score</div>
+        <div class="cval" id="dPosture" style="color:#60a5fa">—<span class="cunit">/100</span></div>
+        <div class="csub" id="dPostureSub">—</div>
+        <div class="cstatus s-ok" id="dPostureSt">—</div>
+      </div>
+    </div>
+
+    <!-- Gauges row -->
+    <div class="grid-2" style="margin-bottom:16px">
+      <!-- Stress gauge -->
+      <div class="card" style="text-align:center">
+        <div class="ctitle">Stress Score</div>
+        <svg class="gauge-svg" width="200" height="120" viewBox="0 0 200 120" style="margin:0 auto;display:block">
+          <path d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="#1a2535" stroke-width="14" stroke-linecap="round"/>
+          <path id="stressArc" d="M20 100 A80 80 0 0 1 180 100" fill="none" stroke="#22c55e" stroke-width="14" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251" style="transition:stroke-dashoffset .8s,stroke .4s"/>
+          <text id="stressVal" class="gauge-val" x="100" y="95" fill="var(--txt)" font-family="sans-serif" font-size="28" font-weight="700">—</text>
+          <text id="stressLbl" class="gauge-lbl" x="100" y="114" font-family="sans-serif" font-size="11">—</text>
+        </svg>
+        <div class="cstatus s-ok" id="stressSt" style="margin:0 auto">Low</div>
+      </div>
+      <!-- Productivity ring -->
+      <div class="card" style="text-align:center">
+        <div class="ctitle">Productivity Score</div>
+        <div class="ring-wrap" style="width:120px;height:120px">
+          <svg class="ring" width="120" height="120" viewBox="0 0 120 120">
+            <circle class="rt" cx="60" cy="60" r="50" stroke-width="10"/>
+            <circle class="rf" id="prodRing" cx="60" cy="60" r="50" stroke="#22c55e" stroke-width="10" stroke-dasharray="314" stroke-dashoffset="314"/>
+          </svg>
+          <div class="sc">
+            <div class="sn" id="prodVal">—</div>
+            <div class="sl">/100</div>
+          </div>
+        </div>
+        <div class="cstatus s-ok" id="prodSt" style="margin:0 auto">—</div>
+      </div>
+    </div>
+
+    <!-- Secondary metrics -->
+    <div class="grid-3">
+      <div class="card card-sm">
+        <div class="ctitle">Light Level</div>
+        <div class="cval" id="dLux" style="color:#fbbf24">—<span class="cunit">lx</span></div>
+        <div class="csub" id="dLuxSub">BH1750 sensor</div>
+      </div>
+      <div class="card card-sm">
+        <div class="ctitle">Pressure (FSR)</div>
+        <div class="cval" id="dFSR" style="color:#c084fc">—</div>
+        <div class="csub" id="dFSRSub">Raw ADC value</div>
+      </div>
+      <div class="card card-sm">
+        <div class="ctitle">System Status</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px">
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--txt3)">Camera</span><span id="statCam" style="color:#334155">Off</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--txt3)">ESP32</span><span id="statESP" style="color:#334155">—</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--txt3)">Face</span><span id="statFace" style="color:#334155">—</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:11px"><span style="color:var(--txt3)">Pose</span><span id="statPose" style="color:#334155">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dashboard charts -->
+    <div class="grid-chart">
+      <div class="chart-card"><div class="ctitle">Heart Rate History</div><div class="chart-h"><canvas id="chDashHR"></canvas></div></div>
+      <div class="chart-card"><div class="ctitle">SpO2 History</div><div class="chart-h"><canvas id="chDashSPO"></canvas></div></div>
+      <div class="chart-card"><div class="ctitle">Stress Trend</div><div class="chart-h"><canvas id="chDashStress"></canvas></div></div>
+      <div class="chart-card"><div class="ctitle">Mood Distribution</div><div class="chart-h"><canvas id="chDashMood"></canvas></div></div>
+    </div>
+  </div>
+
+  <!-- ═══ HEART RATE TAB ═══ -->
+  <div class="tab-pane" id="tab-heartrate">
+    <div class="grid-4" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card"><div class="ctitle">Current BPM</div><div class="cval" id="hrVal" style="color:#ef4444">—<span class="cunit">BPM</span></div><div class="csub">Last updated <span id="hrTime">—</span></div><div class="cstatus s-ok" id="hrSt">Normal</div></div>
+      <div class="card"><div class="ctitle">Average (1h)</div><div class="cval" id="hrAvg" style="color:#f87171">—<span class="cunit">BPM</span></div><div class="csub">Past 60 minutes</div></div>
+      <div class="card"><div class="ctitle">Range (1h)</div><div class="cval" id="hrRange" style="font-size:20px">—</div><div class="csub">Min / Max BPM</div></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:16px"><div class="ctitle">Heart Rate Over Time</div><div class="chart-h-tall"><canvas id="chHR"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">Heart Rate History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>BPM</th><th>Status</th></tr></thead><tbody id="tbHR"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ SPO2 TAB ═══ -->
+  <div class="tab-pane" id="tab-spo2">
+    <div class="grid-4" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card"><div class="ctitle">Current SpO2</div><div class="cval" id="spoVal" style="color:#22c55e">—<span class="cunit">%</span></div><div class="csub">Last updated <span id="spoTime">—</span></div><div class="cstatus s-ok" id="spoSt">Normal</div></div>
+      <div class="card"><div class="ctitle">Average (1h)</div><div class="cval" id="spoAvg" style="color:#4ade80">—<span class="cunit">%</span></div><div class="csub">Past 60 minutes</div></div>
+      <div class="card"><div class="ctitle">Saturation Grade</div><div class="cval" id="spoGrade" style="font-size:20px">—</div><div class="csub">Based on current reading</div></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:16px"><div class="ctitle">SpO2 Over Time</div><div class="chart-h-tall"><canvas id="chSPO"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">SpO2 History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>SpO2 %</th><th>Grade</th></tr></thead><tbody id="tbSPO"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ MOOD TAB ═══ -->
+  <div class="tab-pane" id="tab-mood">
+    <div class="grid-2" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="ctitle">Current Mood</div>
+        <div id="moodBigBox"><div style="color:var(--txt3);text-align:center;padding:20px">Start camera to detect mood</div></div>
+      </div>
+      <div class="card"><div class="ctitle">Mood Distribution (1h)</div><div class="chart-h"><canvas id="chMoodDist"></canvas></div></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:16px"><div class="ctitle">Mood Score History</div><div class="chart-h-tall"><canvas id="chMoodHist"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">Mood History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Mood</th><th>Happy%</th><th>Stressed%</th><th>Sad%</th><th>Neutral%</th></tr></thead><tbody id="tbMood"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ POSTURE TAB ═══ -->
+  <div class="tab-pane" id="tab-posture">
+    <div class="grid-2" style="grid-template-columns:240px 1fr">
+      <div class="card" style="text-align:center">
+        <div class="ctitle">Posture Score</div>
+        <div class="ring-wrap" style="margin-top:10px">
+          <svg class="ring" width="100" height="100" viewBox="0 0 100 100">
+            <circle class="rt" cx="50" cy="50" r="40" stroke-width="9"/>
+            <circle class="rf" id="postureRing" cx="50" cy="50" r="40" stroke="#22c55e" stroke-dasharray="251" stroke-dashoffset="251"/>
+          </svg>
+          <div class="sc"><div class="sn" id="ptScore">—</div><div class="sl">/100</div></div>
+        </div>
+        <div class="pst" id="ptStatus">—</div>
+        <ul class="issues" id="ptIssues"></ul>
+      </div>
+      <div class="card">
+        <div class="ctitle">Posture Metrics</div>
+        <div class="metric-row" style="margin-top:8px">
+          <div class="mchip"><span>Head offset</span><b id="ptHO">—</b></div>
+          <div class="mchip"><span>Face size</span><b id="ptFS">—</b></div>
+          <div class="mchip"><span>Shoulder sym</span><b id="ptSS">—</b></div>
+        </div>
+        <div class="ctitle" style="margin-top:12px">Posture Over Time</div>
+        <div class="chart-h"><canvas id="chPosture"></canvas></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px"><div class="ctitle" style="margin-bottom:10px">Posture History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Status</th><th>Score</th><th>Issues</th></tr></thead><tbody id="tbPosture"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ STRESS TAB ═══ -->
+  <div class="tab-pane" id="tab-stress">
+    <div class="grid-2">
+      <div class="card" style="text-align:center">
+        <div class="ctitle">Stress Score</div>
+        <svg width="240" height="140" viewBox="0 0 240 140" style="display:block;margin:0 auto">
+          <path d="M30 110 A90 90 0 0 1 210 110" fill="none" stroke="#1a2535" stroke-width="16" stroke-linecap="round"/>
+          <path id="stressArc2" d="M30 110 A90 90 0 0 1 210 110" fill="none" stroke="#22c55e" stroke-width="16" stroke-linecap="round" stroke-dasharray="283" stroke-dashoffset="283" style="transition:stroke-dashoffset .8s,stroke .4s"/>
+          <text id="stressVal2" x="120" y="105" text-anchor="middle" fill="var(--txt)" font-family="sans-serif" font-size="36" font-weight="700">—</text>
+          <text id="stressLbl2" x="120" y="128" text-anchor="middle" fill="var(--txt3)" font-family="sans-serif" font-size="12">—</text>
+        </svg>
+        <div class="cstatus s-ok" id="stressSt2" style="margin:8px auto">Low</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Stress Factors</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Heart Rate</span><span id="sfHR" style="color:var(--txt)">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="sfHRBar" class="mbf" style="background:#ef4444;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">SpO2</span><span id="sfSPO" style="color:var(--txt)">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="sfSPOBar" class="mbf" style="background:#22c55e;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Mood</span><span id="sfMood" style="color:var(--txt)">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="sfMoodBar" class="mbf" style="background:#a78bfa;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Posture</span><span id="sfPost" style="color:var(--txt)">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="sfPostBar" class="mbf" style="background:#60a5fa;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Pressure (FSR)</span><span id="sfFSR" style="color:var(--txt)">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="sfFSRBar" class="mbf" style="background:#fbbf24;width:0%"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:14px"><div class="ctitle">Stress Trend</div><div class="chart-h-tall"><canvas id="chStress"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">Stress History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Score</th><th>Level</th><th>HR factor</th><th>Mood factor</th></tr></thead><tbody id="tbStress"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ PRODUCTIVITY TAB ═══ -->
+  <div class="tab-pane" id="tab-productivity">
+    <div class="grid-2">
+      <div class="card" style="text-align:center">
+        <div class="ctitle">Productivity Score</div>
+        <div class="ring-wrap" style="width:140px;height:140px;margin:16px auto">
+          <svg class="ring" width="140" height="140" viewBox="0 0 140 140">
+            <circle class="rt" cx="70" cy="70" r="58" stroke-width="11"/>
+            <circle class="rf" id="prodRing2" cx="70" cy="70" r="58" stroke="#22c55e" stroke-dasharray="364" stroke-dashoffset="364"/>
+          </svg>
+          <div class="sc"><div class="sn" id="prodVal2" style="font-size:28px">—</div><div class="sl">/100</div></div>
+        </div>
+        <div class="cstatus s-ok" id="prodSt2" style="margin:0 auto">—</div>
+      </div>
+      <div class="card">
+        <div class="ctitle">Productivity Breakdown</div>
+        <div style="display:flex;flex-direction:column;gap:10px;margin-top:8px">
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Posture (25pts)</span><span id="pcPost" style="color:var(--green)">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="pcPostBar" class="mbf" style="background:#22c55e;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Mood (25pts)</span><span id="pcMood" style="color:#a78bfa">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="pcMoodBar" class="mbf" style="background:#a78bfa;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Heart Rate (20pts)</span><span id="pcHR" style="color:#ef4444">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="pcHRBar" class="mbf" style="background:#ef4444;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Low Stress (20pts)</span><span id="pcStress" style="color:#60a5fa">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="pcStressBar" class="mbf" style="background:#60a5fa;width:0%"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px"><span style="color:var(--txt2)">Low Fidget/FSR (10pts)</span><span id="pcFSR" style="color:#fbbf24">—</span></div><div style="height:5px;background:var(--border);border-radius:3px;overflow:hidden"><div id="pcFSRBar" class="mbf" style="background:#fbbf24;width:0%"></div></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="chart-card" style="margin-bottom:14px"><div class="ctitle">Productivity Over Time</div><div class="chart-h-tall"><canvas id="chProd"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">Productivity History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Score</th><th>Label</th><th>Posture</th><th>Mood</th></tr></thead><tbody id="tbProd"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ LIGHT TAB ═══ -->
+  <div class="tab-pane" id="tab-light">
+    <div class="grid-4" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card"><div class="ctitle">Current Lux</div><div class="cval" id="luxVal" style="color:#fbbf24">—<span class="cunit">lx</span></div><div class="csub">Last updated <span id="luxTime">—</span></div><div class="cstatus s-ok" id="luxSt">Normal</div></div>
+      <div class="card"><div class="ctitle">Environment</div><div class="cval" id="luxEnv" style="font-size:20px">—</div><div class="csub">Based on lux reading</div></div>
+      <div class="card"><div class="ctitle">Average (1h)</div><div class="cval" id="luxAvg" style="color:#f59e0b">—<span class="cunit">lx</span></div><div class="csub">Past 60 minutes</div></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:14px"><div class="ctitle">Light Level Over Time</div><div class="chart-h-tall"><canvas id="chLux"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">Light History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Lux</th><th>Environment</th></tr></thead><tbody id="tbLux"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ PRESSURE TAB ═══ -->
+  <div class="tab-pane" id="tab-pressure">
+    <div class="grid-4" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card"><div class="ctitle">FSR Raw Value</div><div class="cval" id="fsrVal" style="color:#c084fc">—</div><div class="csub">Last updated <span id="fsrTime">—</span></div></div>
+      <div class="card"><div class="ctitle">Voltage</div><div class="cval" id="fsrVolt" style="color:#e879f9">—<span class="cunit">V</span></div><div class="csub">Calculated from ADC</div></div>
+      <div class="card"><div class="ctitle">Pressure Level</div><div class="cval" id="fsrLevel" style="font-size:20px">—</div><div class="csub">Based on raw value</div></div>
+    </div>
+    <div class="chart-card" style="margin-bottom:14px"><div class="ctitle">Pressure Over Time</div><div class="chart-h-tall"><canvas id="chFSR"></canvas></div></div>
+    <div class="card"><div class="ctitle" style="margin-bottom:10px">Pressure History (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>FSR Raw</th><th>Voltage</th><th>Level</th></tr></thead><tbody id="tbFSR"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ ALERTS TAB ═══ -->
+  <div class="tab-pane" id="tab-alerts">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <div style="font-size:13px;color:var(--txt2)">Recent alerts — click Acknowledge to dismiss</div>
+      <button class="btn-sm" onclick="loadAlerts()">Refresh</button>
+    </div>
+    <div id="alertsBox"><div style="color:var(--txt3);text-align:center;padding:30px">Loading alerts...</div></div>
+    <div class="card" style="margin-top:14px"><div class="ctitle" style="margin-bottom:10px">All Alerts (DB)</div><div class="tbl-wrap"><table><thead><tr><th>Time</th><th>Type</th><th>Severity</th><th>Message</th><th>Sent ESP32</th><th>Action</th></tr></thead><tbody id="tbAlerts"></tbody></table></div></div>
+  </div>
+
+  <!-- ═══ HISTORY TAB ═══ -->
+  <div class="tab-pane" id="tab-history">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+      <button class="btn-sm" onclick="loadHist('sensor')">Sensor</button>
+      <button class="btn-sm" onclick="loadHist('mood')">Mood</button>
+      <button class="btn-sm" onclick="loadHist('posture')">Posture</button>
+      <button class="btn-sm" onclick="loadHist('stress')">Stress</button>
+      <button class="btn-sm" onclick="loadHist('prod')">Productivity</button>
+      <span style="flex:1"></span>
+      <button class="btn-sm" onclick="exportCSV()" style="background:#0c2a1a;color:#4ade80;border-color:#14532d">Export CSV</button>
+    </div>
+    <div class="card"><div class="tbl-wrap"><table><thead id="histHead"></thead><tbody id="histBody"><tr><td colspan="8" style="text-align:center;color:var(--txt3);padding:20px">Select a category above</td></tr></tbody></table></div></div>
+  </div>
+
+  </div><!-- /content -->
+
+  <div class="sbar">
+    <span id="sbFace">Face: —</span><span id="sbPose">Pose: —</span>
+    <span id="sbESP">ESP32: —</span><span id="sbDB">DB: —</span>
+    <span id="sbTime">—</span>
+  </div>
+</div><!-- /main -->
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────
+const MOOD_EMOJI={happy:'😊',sad:'😢',surprised:'😲',stressed:'😰',neutral:'😐'}
+const MOOD_COL  ={happy:'#22c55e',sad:'#60a5fa',surprised:'#a78bfa',stressed:'#f87171',neutral:'#94a3b8'}
+const SEV_ICON  ={High:'🚨',Medium:'⚠️',Low:'ℹ️'}
+const CO={responsive:true,maintainAspectRatio:false,animation:{duration:300},
+  plugins:{legend:{labels:{color:'#64748b',font:{size:10},boxWidth:10}}},
+  scales:{x:{ticks:{color:'#475569',font:{size:9},maxTicksLimit:8},grid:{color:'#0f1520'}},
+          y:{ticks:{color:'#475569',font:{size:9}},grid:{color:'#0f1520'}}}}
+
+// ── Charts ────────────────────────────────────────────────────────
+const charts={}
+function mkLine(id,datasets,yOpts={}){
+  return new Chart(document.getElementById(id),{
+    type:'line',
+    data:{labels:[],datasets:datasets.map(d=>({...d,tension:.3,pointRadius:2,borderWidth:2}))},
+    options:{...CO,scales:{...CO.scales,y:{...CO.scales.y,...yOpts}}}
+  })
+}
+function mkDoughnut(id,labels,colors){
+  return new Chart(document.getElementById(id),{
+    type:'doughnut',
+    data:{labels,datasets:[{data:labels.map(()=>0),backgroundColor:colors,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#64748b',font:{size:10},boxWidth:10}}}}
+  })
+}
+
+charts.dashHR   = mkLine('chDashHR',[{label:'BPM',data:[],borderColor:'#ef4444',backgroundColor:'#ef444415'}])
+charts.dashSPO  = mkLine('chDashSPO',[{label:'SpO2%',data:[],borderColor:'#22c55e',backgroundColor:'#22c55e15'}],{min:88})
+charts.dashStress=mkLine('chDashStress',[{label:'Stress',data:[],borderColor:'#f59e0b',backgroundColor:'#f59e0b15'}],{min:0,max:100})
+charts.dashMood = mkDoughnut('chDashMood',['Happy','Stressed','Sad','Surprised','Neutral'],['#22c55e','#f87171','#60a5fa','#a78bfa','#94a3b8'])
+charts.hr       = mkLine('chHR',[{label:'BPM',data:[],borderColor:'#ef4444',backgroundColor:'#ef444415'}])
+charts.spo      = mkLine('chSPO',[{label:'SpO2%',data:[],borderColor:'#22c55e',backgroundColor:'#22c55e15'}],{min:88})
+charts.moodDist = mkDoughnut('chMoodDist',['Happy','Stressed','Sad','Surprised','Neutral'],['#22c55e','#f87171','#60a5fa','#a78bfa','#94a3b8'])
+charts.moodHist = mkLine('chMoodHist',[
+  {label:'Happy',data:[],borderColor:'#22c55e',backgroundColor:'transparent'},
+  {label:'Stressed',data:[],borderColor:'#f87171',backgroundColor:'transparent'},
+  {label:'Sad',data:[],borderColor:'#60a5fa',backgroundColor:'transparent'}
+])
+charts.posture  = mkLine('chPosture',[{label:'Score',data:[],borderColor:'#60a5fa',backgroundColor:'#60a5fa15'}],{min:0,max:100})
+charts.stress   = mkLine('chStress',[{label:'Stress',data:[],borderColor:'#f59e0b',backgroundColor:'#f59e0b15'}],{min:0,max:100})
+charts.prod     = mkLine('chProd',[{label:'Productivity',data:[],borderColor:'#22c55e',backgroundColor:'#22c55e15'}],{min:0,max:100})
+charts.lux      = mkLine('chLux',[{label:'Lux',data:[],borderColor:'#fbbf24',backgroundColor:'#fbbf2415'}])
+charts.fsr      = mkLine('chFSR',[{label:'FSR Raw',data:[],borderColor:'#c084fc',backgroundColor:'#c084fc15'}])
+
+function pushChart(ch,label,val,max=60){
+  ch.data.labels.push(label)
+  ch.data.datasets[0].data.push(val)
+  if(ch.data.labels.length>max){ch.data.labels.shift();ch.data.datasets[0].data.shift()}
+  ch.update('none')
+}
+function pushChartMulti(ch,label,vals,max=60){
+  ch.data.labels.push(label)
+  vals.forEach((v,i)=>{ch.data.datasets[i].data.push(v);if(ch.data.datasets[i].data.length>max)ch.data.datasets[i].data.shift()})
+  if(ch.data.labels.length>max)ch.data.labels.shift()
+  ch.update('none')
+}
+
+// ── Navigation ────────────────────────────────────────────────────
+const TITLES={dashboard:'Dashboard',heartrate:'Heart Rate',spo2:'SpO2',mood:'Mood',
+  posture:'Posture',stress:'Stress Analysis',productivity:'Productivity',
+  light:'Light Sensor',pressure:'Pressure Sensor (FSR)',alerts:'Alerts',history:'History'}
+function goTab(name){
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'))
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'))
+  document.getElementById('tab-'+name)?.classList.add('active')
+  document.querySelectorAll('.sb-item').forEach(i=>{if(i.textContent.trim().startsWith(TITLES[name]?.split(' ')[0]))i.classList.add('active')})
+  document.getElementById('pageTitle').textContent=TITLES[name]||name
+  if(name==='alerts')loadAlerts()
+  if(name==='history')loadHist('sensor')
+}
+
+// ── Camera ────────────────────────────────────────────────────────
+let stream=null,camInterval=null,fCount=0,lastFpsT=Date.now()
+async function startCam(){
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{width:640,height:480,facingMode:'user'}})
+    document.getElementById('video').srcObject=stream
+    document.getElementById('liveDot').classList.add('on')
+    document.getElementById('startBtn').disabled=true
+    document.getElementById('liveChip').style.display='inline-flex'
+    document.getElementById('statCam').textContent='Active'
+    document.getElementById('statCam').style.color='#4ade80'
+    camInterval=setInterval(captureFrame,1000)
+  }catch(e){alert('Camera error: '+e.message)}
+}
+function stopCam(){
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  clearInterval(camInterval);camInterval=null
+  document.getElementById('liveDot').classList.remove('on')
+  document.getElementById('startBtn').disabled=false
+  document.getElementById('liveChip').style.display='none'
+  document.getElementById('statCam').textContent='Off'
+  document.getElementById('statCam').style.color='#334155'
+}
+async function calibratePosture(){
+  const b=document.getElementById('calBtn')
+  if(!stream){alert('Start the camera first, then sit upright and press Calibrate.');return}
+  await fetch('/calibrate',{method:'POST'})
+  b.disabled=true
+  const t=setInterval(async()=>{
+    const r=await (await fetch('/api/calibration')).json()
+    b.textContent=r.collecting?`Hold still… ${r.progress}/${r.target}`:'✓ Calibrated'
+    if(!r.collecting){clearInterval(t);b.disabled=false;setTimeout(()=>b.textContent='🎯 Calibrate',3000)}
+  },700)
+}
+async function captureFrame(){
+  const v=document.getElementById('video')
+  if(!v.videoWidth)return
+  const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight
+  c.getContext('2d').drawImage(v,0,0)
+  fCount++;const now=Date.now()
+  if(now-lastFpsT>=2000){document.getElementById('fpsLbl').textContent=(fCount/((now-lastFpsT)/1000)).toFixed(1)+' fps';fCount=0;lastFpsT=now}
+  try{const r=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:c.toDataURL('image/jpeg',.7)})});renderCam(await r.json())}catch(e){console.error(e)}
+}
+
+// ── Render camera results ─────────────────────────────────────────
+function renderCam(d){
+  const t=new Date().toLocaleTimeString()
+  document.getElementById('sbFace').textContent='Face: '+(d.face_detected?'✓':'✗')
+  document.getElementById('sbPose').textContent='Pose: '+(d.pose_detected?'✓':'✗')
+  document.getElementById('sbTime').textContent=t
+  document.getElementById('tbTime').textContent=t
+  document.getElementById('statFace').textContent=d.face_detected?'✓ Detected':'✗ None'
+  document.getElementById('statFace').style.color=d.face_detected?'#4ade80':'#f87171'
+  document.getElementById('statPose').textContent=d.pose_detected?'✓ Detected':'✗ None'
+  document.getElementById('statPose').style.color=d.pose_detected?'#4ade80':'#f87171'
+
+  if(d.face_detected&&d.mood){
+    const m=d.mood,sc=d.mood_scores||{}
+    const bars=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(([n,p])=>
+      `<div class="mbrow"><span class="mbn">${n}</span><div class="mbt"><div class="mbf" style="width:${p}%;background:${MOOD_COL[n]||'#64748b'}"></div></div><span class="mbp">${p}%</span></div>`
+    ).join('')
+    const moodHtml=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="font-size:36px">${MOOD_EMOJI[m]||'😐'}</span>
+      <div><div style="font-size:18px;font-weight:700;color:${MOOD_COL[m]};text-transform:capitalize">${m}</div>
+      <div style="font-size:10px;color:var(--txt3)">${d.mood_method==='deepface'?'DeepFace AI model':'OpenCV Haar cascade'}</div></div>
+    </div>${bars}`
+    document.getElementById('moodMiniBox').innerHTML=moodHtml
+    document.getElementById('moodBigBox').innerHTML=moodHtml
+
+    // Top card
+    document.getElementById('dMood').textContent=MOOD_EMOJI[m]+' '+m
+    document.getElementById('dMood').style.color=MOOD_COL[m]
+    document.getElementById('dMoodSub').textContent='Face detection'
+    document.getElementById('dMoodSt').textContent=m
+    document.getElementById('dMoodSt').className='cstatus '+(m==='happy'?'s-good':m==='stressed'||m==='sad'?'s-poor':'s-fair')
+
+    // Mood chart
+    pushChartMulti(charts.moodHist,t,[sc.happy||0,sc.stressed||0,sc.sad||0])
+    pushChart(charts.dashStress,t,d.stress_score||0)
+    pushChart(charts.stress,t,d.stress_score||0)
+
+    // Mood dist
+    const mvals=[sc.happy||0,sc.stressed||0,sc.sad||0,sc.surprised||0,sc.neutral||0]
+    charts.moodDist.data.datasets[0].data=mvals;charts.moodDist.update('none')
+    charts.dashMood.data.datasets[0].data=mvals;charts.dashMood.update('none')
+  }
+
+  if(d.pose_detected){
+    const s=d.posture_score||0,st=d.posture_status||'',iss=d.posture_issues||[],pm=d.posture_metrics||{}
+    const circ=251,off=circ-(s/100)*circ
+    const rc=s>=80?'#22c55e':s>=60?'#f59e0b':'#ef4444'
+    document.getElementById('postureRing').setAttribute('stroke-dashoffset',off)
+    document.getElementById('postureRing').setAttribute('stroke',rc)
+    document.getElementById('ptScore').textContent=s
+    document.getElementById('ptScore').style.color=rc
+    document.getElementById('ptStatus').textContent=st+' posture'
+    document.getElementById('ptStatus').className='pst '+(s>=80?'s-good':s>=60?'s-fair':'s-poor')
+    document.getElementById('ptIssues').innerHTML=iss.length?iss.map(i=>`<li>${i}</li>`).join(''):'<li style="color:#4ade80">All clear!</li>'
+    document.getElementById('ptHO').textContent=pm.head_center_offset!=null?pm.head_center_offset+'%':(pm.neck_angle_deg!=null?pm.neck_angle_deg+'°':'—')
+    document.getElementById('ptFS').textContent=pm.face_size_pct!=null?pm.face_size_pct+'%':(pm.spine_lean_deg!=null?pm.spine_lean_deg+'°':'—')
+    document.getElementById('ptSS').textContent=pm.shoulder_symmetry!=null?pm.shoulder_symmetry+'%':(pm.shoulder_tilt_pct!=null?pm.shoulder_tilt_pct+'%':'—')
+    const pmethod=d.posture_method==='mediapipe_33pts'?'MediaPipe 33-pt':'OpenCV face'
+    document.getElementById('ptStatus').title='Method: '+pmethod
+    document.getElementById('dPosture').textContent=s
+    document.getElementById('dPostureSub').textContent=st
+    document.getElementById('dPostureSt').textContent=st
+    document.getElementById('dPostureSt').className='cstatus '+(s>=80?'s-good':s>=60?'s-fair':'s-poor')
+    pushChart(charts.posture,t,s)
+  }
+
+  // Stress & productivity
+  if(d.stress_score!=null){
+    const ss=d.stress_score,sl=d.stress_level||'Low'
+    const sc2=ss>=65?'s-high':ss>=35?'s-medium':'s-low'
+    const arc=251,off2=arc-(ss/100)*arc
+    const rc=ss>=65?'#ef4444':ss>=35?'#f59e0b':'#22c55e'
+    document.getElementById('stressArc').setAttribute('stroke-dashoffset',off2)
+    document.getElementById('stressArc').setAttribute('stroke',rc)
+    document.getElementById('stressArc2').setAttribute('stroke-dashoffset',283-(ss/100)*283)
+    document.getElementById('stressArc2').setAttribute('stroke',rc)
+    document.getElementById('stressVal').textContent=ss
+    document.getElementById('stressLbl').textContent=sl
+    document.getElementById('stressVal2').textContent=ss
+    document.getElementById('stressLbl2').textContent=sl
+    document.getElementById('stressSt').textContent=sl;document.getElementById('stressSt').className='cstatus '+sc2
+    document.getElementById('stressSt2').textContent=sl;document.getElementById('stressSt2').className='cstatus '+sc2
+  }
+  if(d.productivity_score!=null){
+    const ps=d.productivity_score,pl=d.productivity_label||'—'
+    const circ=314,off=circ-(ps/100)*circ
+    const rc=ps>=70?'#22c55e':ps>=45?'#f59e0b':'#ef4444'
+    document.getElementById('prodRing').setAttribute('stroke-dashoffset',off)
+    document.getElementById('prodRing').setAttribute('stroke',rc)
+    document.getElementById('prodRing2').setAttribute('stroke-dashoffset',364-(ps/100)*364)
+    document.getElementById('prodRing2').setAttribute('stroke',rc)
+    document.getElementById('prodVal').textContent=ps;document.getElementById('prodVal2').textContent=ps
+    document.getElementById('prodSt').textContent=pl;document.getElementById('prodSt2').textContent=pl
+    const sc3=ps>=70?'s-good':ps>=45?'s-fair':'s-poor'
+    document.getElementById('prodSt').className='cstatus '+sc3
+    document.getElementById('prodSt2').className='cstatus '+sc3
+    pushChart(charts.prod,t,ps)
+  }
+}
+
+// ── Poll ESP32 sensor data ────────────────────────────────────────
+async function pollESP32(){
+  try{
+    const r=await fetch('/api/state');const d=await r.json()
+    const t=new Date().toLocaleTimeString()
+
+    if(d.heart_rate!=null){
+      const hr=parseFloat(d.heart_rate).toFixed(0)
+      const hrSt=hr>100?'s-high':hr<55?'s-poor':'s-ok'
+      const hrLbl=hr>100?'High':'Normal'
+      document.getElementById('dHR').innerHTML=hr+'<span class="cunit">BPM</span>'
+      document.getElementById('dHRsub').textContent='MAX30100 sensor'
+      document.getElementById('dHRst').textContent=hrLbl;document.getElementById('dHRst').className='cstatus '+hrSt
+      document.getElementById('hrVal').innerHTML=hr+'<span class="cunit">BPM</span>'
+      document.getElementById('hrSt').textContent=hrLbl;document.getElementById('hrSt').className='cstatus '+hrSt
+      document.getElementById('hrTime').textContent=t
+      pushChart(charts.dashHR,t,parseFloat(hr))
+      pushChart(charts.hr,t,parseFloat(hr))
+    }else if(d.sensor_online){
+      // ESP32 is live but reports no heart rate -> finger removed: show 0
+      document.getElementById('dHR').innerHTML='0<span class="cunit">BPM</span>'
+      document.getElementById('dHRsub').textContent='No finger on sensor'
+      document.getElementById('dHRst').textContent='No finger';document.getElementById('dHRst').className='cstatus s-fair'
+      document.getElementById('hrVal').innerHTML='0<span class="cunit">BPM</span>'
+      document.getElementById('hrSt').textContent='No finger';document.getElementById('hrSt').className='cstatus s-fair'
+      document.getElementById('hrTime').textContent=t
+      pushChart(charts.dashHR,t,0)
+      pushChart(charts.hr,t,0)
+    }
+    if(d.spo2!=null){
+      const sp=parseFloat(d.spo2).toFixed(1)
+      const spSt=sp<92?'s-high':sp<95?'s-fair':'s-ok'
+      const spLbl=sp<92?'Critical':sp<95?'Low':'Normal'
+      const spGrade=sp>=98?'Excellent':sp>=95?'Normal':sp>=90?'Low':'Critical'
+      document.getElementById('dSPO').innerHTML=sp+'<span class="cunit">%</span>'
+      document.getElementById('dSPOst').textContent=spLbl;document.getElementById('dSPOst').className='cstatus '+spSt
+      document.getElementById('spoVal').innerHTML=sp+'<span class="cunit">%</span>'
+      document.getElementById('spoSt').textContent=spLbl;document.getElementById('spoSt').className='cstatus '+spSt
+      document.getElementById('spoGrade').textContent=spGrade
+      document.getElementById('spoTime').textContent=t
+      pushChart(charts.dashSPO,t,parseFloat(sp))
+      pushChart(charts.spo,t,parseFloat(sp))
+
+      // Stress factors
+      document.getElementById('sfSPO').textContent=sp+'%'
+      const spf=sp<95?(95-sp)/5*0.8:0
+      document.getElementById('sfSPOBar').style.width=(spf*100)+'%'
+    }else if(d.sensor_online){
+      document.getElementById('dSPO').innerHTML='0<span class="cunit">%</span>'
+      document.getElementById('dSPOst').textContent='No finger';document.getElementById('dSPOst').className='cstatus s-fair'
+      document.getElementById('spoVal').innerHTML='0<span class="cunit">%</span>'
+      document.getElementById('spoSt').textContent='No finger';document.getElementById('spoSt').className='cstatus s-fair'
+      document.getElementById('spoGrade').textContent='—'
+      document.getElementById('spoTime').textContent=t
+      document.getElementById('sfSPO').textContent='—'
+      document.getElementById('sfSPOBar').style.width='0%'
+      pushChart(charts.dashSPO,t,0)
+      pushChart(charts.spo,t,0)
+    }
+    if(d.lux!=null){
+      const lx=parseFloat(d.lux).toFixed(0)
+      const env=lx<50?'Dark':lx<200?'Dim':lx<500?'Normal':lx<1000?'Bright':'Very Bright'
+      document.getElementById('dLux').innerHTML=lx+'<span class="cunit">lx</span>'
+      document.getElementById('dLuxSub').textContent=env
+      document.getElementById('luxVal').innerHTML=lx+'<span class="cunit">lx</span>'
+      document.getElementById('luxEnv').textContent=env
+      document.getElementById('luxSt').textContent=env
+      document.getElementById('luxTime').textContent=t
+      pushChart(charts.lux,t,parseFloat(lx))
+    }
+    if(d.fsr_raw!=null){
+      const fsr=parseInt(d.fsr_raw)
+      const fv=((fsr/4095)*3.3).toFixed(2)
+      const fl=fsr<500?'None':fsr<1500?'Light':fsr<3000?'Medium':'Heavy'
+      document.getElementById('dFSR').textContent=fsr
+      document.getElementById('dFSRSub').textContent='Voltage: '+fv+'V — '+fl
+      document.getElementById('fsrVal').textContent=fsr
+      document.getElementById('fsrVolt').innerHTML=fv+'<span class="cunit">V</span>'
+      document.getElementById('fsrLevel').textContent=fl
+      document.getElementById('fsrTime').textContent=t
+      pushChart(charts.fsr,t,fsr)
+      document.getElementById('sfFSR').textContent=fsr
+      const fsrf=fsr/4095
+      document.getElementById('sfFSRBar').style.width=(fsrf*100)+'%'
+    }
+
+    // Stress factors
+    if(d.heart_rate){
+      const hr=d.heart_rate,hrf=hr>100?Math.min(1,(hr-100)/40):0
+      document.getElementById('sfHR').textContent=parseFloat(hr).toFixed(0)+' bpm'
+      document.getElementById('sfHRBar').style.width=(hrf*100)+'%'
+    }
+    if(d.mood){
+      const mf={stressed:.9,sad:.7,surprised:.4,neutral:.2,happy:0}[d.mood]||.3
+      document.getElementById('sfMood').textContent=d.mood
+      document.getElementById('sfMoodBar').style.width=(mf*100)+'%'
+    }
+    if(d.posture_score!=null){
+      const pf=Math.max(0,(80-d.posture_score)/80)
+      document.getElementById('sfPost').textContent=d.posture_score+'/100'
+      document.getElementById('sfPostBar').style.width=(pf*100)+'%'
+    }
+
+    // Productivity breakdown
+    if(d.productivity_score!=null){
+      document.getElementById('pcPost').textContent=(d.posture_score||0)/100*25|0+' pts'
+      document.getElementById('pcPostBar').style.width=((d.posture_score||0)/100*100)+'%'
+    }
+
+    document.getElementById('sbESP').textContent='ESP32: '+(d.esp32_ip||'—')
+    document.getElementById('statESP').textContent=d.esp32_ip||'—'
+    document.getElementById('statESP').style.color=d.esp32_ip?'#4ade80':'#475569'
+  }catch(e){}
+}
+
+// ── ESP32 connect ─────────────────────────────────────────────────
+async function connectESP(){
+  const ip=document.getElementById('espIp').value.trim()
+  if(!ip)return
+  setESP('wait','Connecting...')
+  try{
+    const r=await fetch('/set-esp32',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ip})})
+    const d=await r.json()
+    if(d.status==='connected'){
+      setESP('ok','Connected — '+ip)
+      document.getElementById('espDotSB').classList.add('on')
+      document.getElementById('espLabelSB').textContent=ip
+    }else setESP('err','Cannot reach '+ip)
+  }catch(e){setESP('err','Error: '+e.message)}
+}
+function setESP(t,m){
+  const el=document.getElementById('espSt')
+  el.className='esp-st '+(t==='ok'?'st-ok':t==='wait'?'st-wait':'st-err')
+  el.textContent=(t==='ok'?'● ':t==='wait'?'◌ ':'○ ')+m
+}
+
+// ── Alert system ──────────────────────────────────────────────────
+async function loadAlerts(){
+  try{
+    const data=await fetch('/api/alerts').then(r=>r.json())
+    const unread=data.filter(a=>!a.acknowledged)
+    const cnt=unread.length
+    document.getElementById('bellCount').textContent=cnt
+    document.getElementById('bellCount').style.display=cnt?'':'none'
+    document.getElementById('sbAlertCount').textContent=cnt
+    document.getElementById('sbAlertCount').style.display=cnt?'':'none'
+
+    document.getElementById('alertsBox').innerHTML=unread.slice(0,5).map(a=>`
+      <div class="alert-item ai-${a.severity?.toLowerCase()||'low'}" id="ai${a.id}">
+        <span class="ai-icon">${SEV_ICON[a.severity]||'ℹ️'}</span>
+        <div style="flex:1">
+          <div class="ai-title" style="color:${a.severity==='High'?'#f87171':a.severity==='Medium'?'#fbbf24':'#4ade80'}">${a.alert_type||'Alert'}</div>
+          <div class="ai-msg">${a.message||''}</div>
+        </div>
+        <span class="ai-time">${a.timestamp?.slice(11,19)||''}</span>
+        <button class="ai-ack" onclick="ackAlert(${a.id})">Ack</button>
+      </div>`).join('')||'<div style="color:var(--txt3);text-align:center;padding:20px">No active alerts 🎉</div>'
+
+    document.getElementById('tbAlerts').innerHTML=data.map(a=>`
+      <tr>
+        <td>${a.timestamp?.slice(11,19)||'—'}</td>
+        <td>${a.alert_type||'—'}</td>
+        <td style="color:${a.severity==='High'?'#f87171':a.severity==='Medium'?'#fbbf24':'#4ade80'}">${a.severity||'—'}</td>
+        <td>${a.message||'—'}</td>
+        <td style="color:${a.sent_to_esp32?'#4ade80':'#f87171'}">${a.sent_to_esp32?'✓':'✗'}</td>
+        <td><button class="ai-ack" onclick="ackAlert(${a.id})">Ack</button></td>
+      </tr>`).join('')||'<tr><td colspan="6" style="text-align:center;color:var(--txt3)">No alerts</td></tr>'
+  }catch(e){document.getElementById('alertsBox').innerHTML='<div style="color:#f87171;text-align:center;padding:20px">Error loading alerts — is DB connected?</div>'}
+}
+async function ackAlert(id){
+  await fetch('/api/alerts/ack/'+id,{method:'POST'})
+  document.getElementById('ai'+id)?.remove()
+  loadAlerts()
+}
+
+// ── History tables ────────────────────────────────────────────────
+async function loadHist(type){
+  const heads={
+    sensor:['Time','HR (BPM)','SpO2%','Lux','FSR Raw'],
+    mood:['Time','Mood','Happy%','Stressed%','Sad%','Neutral%'],
+    posture:['Time','Status','Score','Issues'],
+    stress:['Time','Score','Level','HR factor','Mood factor'],
+    prod:['Time','Score','Label','Posture contrib','Mood contrib']
+  }
+  const urls={sensor:'/api/history',mood:'/api/mood-data',posture:'/api/posture-data',stress:'/api/stress-data',prod:'/api/productivity-data'}
+  document.getElementById('histHead').innerHTML='<tr>'+heads[type].map(h=>`<th>${h}</th>`).join('')+'</tr>'
+  try{
+    const data=await fetch(urls[type]).then(r=>r.json())
+    const rows={
+      sensor:d=>`<td>${d.timestamp?.slice(11,19)||'—'}</td><td>${fmt(d.heart_rate,0)}</td><td>${fmt(d.spo2,1)}</td><td>${fmt(d.lux,0)}</td><td>${d.fsr_raw||'—'}</td>`,
+      mood:d=>`<td>${d.timestamp?.slice(11,19)||'—'}</td><td style="color:${MOOD_COL[d.mood]||'#94a3b8'}">${d.mood||'—'}</td><td>${fmt(d.score_happy,1)}</td><td>${fmt(d.score_stressed,1)}</td><td>${fmt(d.score_sad,1)}</td><td>${fmt(d.score_neutral,1)}</td>`,
+      posture:d=>`<td>${d.timestamp?.slice(11,19)||'—'}</td><td>${d.posture_status||'—'}</td><td>${d.posture_score||'—'}</td><td style="font-size:10px">${d.issues||'[]'}</td>`,
+      stress:d=>`<td>${d.timestamp?.slice(11,19)||'—'}</td><td>${fmt(d.stress_score,1)}</td><td style="color:${d.stress_level==='High'?'#f87171':d.stress_level==='Medium'?'#fbbf24':'#4ade80'}">${d.stress_level||'—'}</td><td>${fmt(d.hr_factor,3)}</td><td>${fmt(d.mood_factor,3)}</td>`,
+      prod:d=>`<td>${d.timestamp?.slice(11,19)||'—'}</td><td>${fmt(d.productivity_score,1)}</td><td>${d.productivity_label||'—'}</td><td>${fmt(d.posture_contrib,1)}</td><td>${fmt(d.mood_contrib,1)}</td>`
+    }
+    document.getElementById('histBody').innerHTML=data.map(d=>`<tr>${rows[type](d)}</tr>`).join('')
+    ||'<tr><td colspan="8" style="text-align:center;color:var(--txt3);padding:20px">No data</td></tr>'
+  }catch(e){document.getElementById('histBody').innerHTML='<tr><td colspan="8" style="color:#f87171;text-align:center">DB not connected</td></tr>'}
+}
+
+// Tab-specific tables
+async function loadTabTable(tab){
+  if(tab==='heartrate'){
+    const d=await fetch('/api/history').then(r=>r.json())
+    document.getElementById('tbHR').innerHTML=d.map(r=>`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${fmt(r.heart_rate,0)}</td><td style="color:${r.heart_rate>100?'#f87171':'#4ade80'}">${r.heart_rate>100?'High':'Normal'}</td></tr>`).join('')
+  }
+  if(tab==='spo2'){
+    const d=await fetch('/api/history').then(r=>r.json())
+    document.getElementById('tbSPO').innerHTML=d.map(r=>{const g=r.spo2>=98?'Excellent':r.spo2>=95?'Normal':'Low';return`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${fmt(r.spo2,1)}</td><td>${g}</td></tr>`}).join('')
+  }
+  if(tab==='mood'){
+    const d=await fetch('/api/mood-data').then(r=>r.json())
+    document.getElementById('tbMood').innerHTML=d.map(r=>`<tr><td>${r.timestamp?.slice(11,19)}</td><td style="color:${MOOD_COL[r.mood]||'#94a3b8'}">${r.mood||'—'}</td><td>${fmt(r.score_happy,1)}</td><td>${fmt(r.score_stressed,1)}</td><td>${fmt(r.score_sad,1)}</td><td>${fmt(r.score_neutral,1)}</td></tr>`).join('')
+  }
+  if(tab==='posture'){
+    const d=await fetch('/api/posture-data').then(r=>r.json())
+    document.getElementById('tbPosture').innerHTML=d.map(r=>`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${r.posture_status||'—'}</td><td>${r.posture_score||'—'}</td><td style="font-size:10px">${r.issues||'[]'}</td></tr>`).join('')
+  }
+  if(tab==='stress'){
+    const d=await fetch('/api/stress-data').then(r=>r.json())
+    document.getElementById('tbStress').innerHTML=d.map(r=>`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${fmt(r.stress_score,1)}</td><td style="color:${r.stress_level==='High'?'#f87171':r.stress_level==='Medium'?'#fbbf24':'#4ade80'}">${r.stress_level||'—'}</td><td>${fmt(r.hr_factor,3)}</td><td>${fmt(r.mood_factor,3)}</td></tr>`).join('')
+  }
+  if(tab==='productivity'){
+    const d=await fetch('/api/productivity-data').then(r=>r.json())
+    document.getElementById('tbProd').innerHTML=d.map(r=>`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${fmt(r.productivity_score,1)}</td><td>${r.productivity_label||'—'}</td><td>${fmt(r.posture_contrib,1)}</td><td>${fmt(r.mood_contrib,1)}</td></tr>`).join('')
+  }
+  if(tab==='light'){
+    const d=await fetch('/api/history').then(r=>r.json())
+    document.getElementById('tbLux').innerHTML=d.map(r=>{const e=r.lux<50?'Dark':r.lux<200?'Dim':r.lux<500?'Normal':r.lux<1000?'Bright':'Very Bright';return`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${fmt(r.lux,0)}</td><td>${e}</td></tr>`}).join('')
+    const avg=d.reduce((s,r)=>s+(r.lux||0),0)/(d.length||1)
+    document.getElementById('luxAvg').innerHTML=avg.toFixed(0)+'<span class="cunit">lx</span>'
+  }
+  if(tab==='pressure'){
+    const d=await fetch('/api/history').then(r=>r.json())
+    document.getElementById('tbFSR').innerHTML=d.map(r=>{const fl=r.fsr_raw<500?'None':r.fsr_raw<1500?'Light':r.fsr_raw<3000?'Medium':'Heavy';return`<tr><td>${r.timestamp?.slice(11,19)}</td><td>${r.fsr_raw||'—'}</td><td>${((r.fsr_raw||0)/4095*3.3).toFixed(2)}</td><td>${fl}</td></tr>`}).join('')
+  }
+  if(tab==='heartrate'){
+    const d=await fetch('/api/history').then(r=>r.json())
+    if(d.length){
+      const hrs=d.map(r=>r.heart_rate).filter(Boolean)
+      document.getElementById('hrAvg').innerHTML=(hrs.reduce((a,b)=>a+b,0)/hrs.length).toFixed(0)+'<span class="cunit">BPM</span>'
+      document.getElementById('hrRange').textContent=Math.min(...hrs).toFixed(0)+' / '+Math.max(...hrs).toFixed(0)
+    }
+    if(d.length){
+      const sps=d.map(r=>r.spo2).filter(Boolean)
+      document.getElementById('spoAvg').innerHTML=(sps.reduce((a,b)=>a+b,0)/sps.length).toFixed(1)+'<span class="cunit">%</span>'
+    }
+  }
+}
+
+// ── Stats refresh ─────────────────────────────────────────────────
+async function refreshStats(){
+  try{
+    const d=await fetch('/api/stats').then(r=>r.json())
+    if(d.sensor)document.getElementById('sbDB').textContent=`DB: ${d.sensor.cnt||0} readings | AvgHR:${d.sensor.hr||'—'} SpO2:${d.sensor.sp||'—'}%`
+    if(d.unread_alerts>0){
+      document.getElementById('bellCount').textContent=d.unread_alerts
+      document.getElementById('bellCount').style.display=''
+    }
+    // Mood dist
+    const md=await fetch('/api/mood-dist').then(r=>r.json())
+    if(md.length){
+      const m={};md.forEach(x=>m[x.mood]=x.cnt)
+      const vals=[m.happy||0,m.stressed||0,m.sad||0,m.surprised||0,m.neutral||0]
+      charts.dashMood.data.datasets[0].data=vals;charts.dashMood.update('none')
+      charts.moodDist.data.datasets[0].data=vals;charts.moodDist.update('none')
+    }
+  }catch(e){}
+}
+
+function fmt(v,d){return v==null?'—':parseFloat(v).toFixed(d)}
+
+let _currentHistTab = 'sensor'
+function loadHist(type){ _currentHistTab=type; }
+
+function exportCSV(){
+  const map={sensor:'sensor',mood:'mood',posture:'posture',stress:'stress',prod:'productivity'}
+  const t=map[_currentHistTab]||'sensor'
+  window.open(`/api/export/${t}?hours=24`,'_blank')
+}
+
+// Update clock
+setInterval(()=>{document.getElementById('tbTime').textContent=new Date().toLocaleTimeString()},1000)
+
+// Polling
+pollESP32()
+setInterval(pollESP32,3000)
+setInterval(refreshStats,15000)
+setInterval(loadAlerts,20000)
+loadAlerts()
+refreshStats()
+
+async function loadSystemInfo(){
+  try{
+    const d=await fetch('/api/system-info').then(r=>r.json())
+    const mb=document.getElementById('moodModelBadge')
+    const pb=document.getElementById('poseModelBadge')
+    if(mb) mb.textContent=d.deepface?'DeepFace AI':'OpenCV Haar'
+    if(pb) pb.textContent=d.mediapipe?'MediaPipe 33pt':'OpenCV Face'
+  }catch(e){}
+}
+loadSystemInfo()
+</script>
+</body>
+</html>

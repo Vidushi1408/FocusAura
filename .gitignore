@@ -1,0 +1,10 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.DS_Store
+.env
+secrets.h
+tests/live_frames/
+python/calibration.json
